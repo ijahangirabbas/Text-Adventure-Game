@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Dragon's Quest</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+    #output {
+      border: 1px solid #ccc;
+      padding: 10px;
+      min-height: 300px;
+      margin-bottom: 10px;
+      white-space: pre-wrap;
+    }
+    #input {
+      width: 100px;
+      padding: 5px;
+    }
+    button {
+      padding: 5px 10px;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>The Dragon's Quest</h1>
+  <div id="output"></div>
+  <input type="text" id="input" placeholder="Enter choice number">
+  <button onclick="submitChoice()">Submit</button>
+  <button onclick="startGame()">Restart Game</button>
+  <script>
+    // Game state variables
+    let gameRunning = true;
+    let playerName = "";
+    let playerHealth = 100;
+    let playerGold = 20;
+    let currentLocation = "village";
+    let inventory = [];
+    let equippedWeapon = null;
+    let equippedArmor = null;
+    let monsterDefense = 5;
+    let healingPotionValue = 30;
+    let outputLog = [];
+
+    // Item templates
+    const itemTemplates = [
+      { name: "Sword", type: "weapon", value: 10, effect: 10, description: "A basic sword. Increases your attack power." },
+      { name: "Steel Sword", type: "weapon", value: 25, effect: 20, description: "A sharp steel sword. Deals more damage than a basic sword." },
+      { name: "Woodslug: enShield", type: "armor", value: 8, effect: 5, description: "Reduces damage taken in combat." },
+      { name: "Iron Shield", type: "armor", value: 18, effect: 10, description: "A sturdy iron shield. Offers better protection." },
+      { name: "Health Potion", type: "potion", value: 5, effect: healingPotionValue, description: "Restores 30 health." },
+    ];
+
+    // Helper functions
+    function getItemsByType(type) {
+      return inventory.filter((item) => item.type === type);
+    }
+
+    function getBestItem(type) {
+      const items = getItemsByType(type);
+      if (items.length === 0) return null;
+      return items.reduce((best, item) => (item.effect > best.effect ? item : best), items[0]);
+    }
+
+    function hasGoodEquipment() {
+      const hasSteelSword = inventory.some((item) => item.name === "Steel Sword");
+      const hasAnyArmor = inventory.some((item) => item.type === "armor");
+      return hasSteelSword && hasAnyArmor;
+    }
+
+    // Display functions
+    function showStatus() {
+      outputLog.push(`=== ${playerName}'s Status ===`);
+      outputLog.push(`❤️ Health: ${playerHealth}`);
+      outputLog.push(`💰 Gold: ${playerGold}`);
+      outputLog.push(`📍 Location: ${currentLocation}`);
+      outputLog.push(`🎒 Inventory:`);
+      if (inventory.length === 0) {
+        outputLog.push("   Nothing in inventory");
+      } else {
+        inventory.forEach((item, index) => {
+          outputLog.push(`   ${index + 1}. ${item.name} - ${item.description}`);
+        });
+      }
+    }
+
+    function showLocation() {
+      outputLog.push(`\n=== ${currentLocation.toUpperCase()} ===`);
+      if (currentLocation === "village") {
+        outputLog.push("You're in a bustling village. The blacksmith, market, and a path to the mountains are nearby.");
+        outputLog.push("\nWhat would you like to do?");
+        outputLog.push("1: Go to blacksmith");
+        outputLog.push("2: Go to market");
+        outputLog.push("3: Enter forest");
+        outputLog.push("4: Climb the mountain");
+        outputLog.push("5: Check status");
+        outputLog.push("6: Use item");
+        outputLog.push("7: Help");
+        outputLog.push("8: Quit game");
+      } else if (currentLocation === "blacksmith") {
+        outputLog.push("The heat from the forge fills the air. Weapons and armor line the walls.");
+        outputLog.push("\nWhat would you like to do?");
+        outputLog.push("1: Shop for weapons/armor");
+        outputLog.push("2: Return to village");
+        outputLog.push("3: Check status");
+        outputLog.push("4: Use item");
+        outputLog.push("5: Help");
+        outputLog.push("6: Quit game");
+      } else if (currentLocation === "market") {
+        outputLog.push("Merchants sell their wares from colorful stalls. A potion seller catches your eye.");
+        outputLog.push("\nWhat would you like to do?");
+        outputLog.push("1: Shop for potions");
+        outputLog.push("2: Return to village");
+        outputLog.push("3: Check status");
+        outputLog.push("4: Use item");
+        outputLog.push("5: Help");
+        outputLog.push("6: Quit game");
+      } else if (currentLocation === "forest") {
+        outputLog.push("The forest is dark and foreboding. You hear strange noises all around you.");
+        outputLog.push("\nWhat would you like to do?");
+        outputLog.push("1: Return to village");
+        outputLog.push("2: Check status");
+        outputLog.push("3: Use item");
+        outputLog.push("4: Help");
+        outputLog.push("5: Quit game");
+      } else if (currentLocation === "mountain") {
+        outputLog.push("You stand at the foot of the mountain. The dragon's lair is near. The air is thick with danger.");
+        outputLog.push("\nWhat would you like to do?");
+        outputLog.push("1: Enter the dragon's lair");
+        outputLog.push("2: Return to village");
+        outputLog.push("3: Check status");
+        outputLog.push("4: Use item");
+        outputLog.push("5: Help");
+        outputLog.push("6: Quit game");
+      }
+    }
+
+    // Movement function
+    function move(choiceNum) {
+      let validMove = false;
+      if (currentLocation === "village") {
+        if (choiceNum === 1) {
+          currentLocation = "blacksmith";
+          outputLog.push("\nYou enter the blacksmith's shop.");
+          validMove = true;
+        } else if (choiceNum === 2) {
+          currentLocation = "market";
+          outputLog.push("\nYou enter the market.");
+          validMove = true;
+        } else if (choiceNum === 3) {
+          currentLocation = "forest";
+          outputLog.push("\nYou venture into the forest...");
+          outputLog.push("\nA monster appears!");
+          if (!handleCombat()) {
+            currentLocation = "village";
+          }
+          validMove = true;
+        } else if (choiceNum === 4) {
+          currentLocation = "mountain";
+          outputLog.push("\nYou approach the mountain path...");
+          validMove = true;
+        }
+      } else if (currentLocation === "blacksmith") {
+        if (choiceNum === 1) {
+          buyFromBlacksmith();
+          validMove = false;
+        } else if (choiceNum === 2) {
+          currentLocation = "village";
+          outputLog.push("\nYou return to the village center.");
+          validMove = true;
+        }
+      } else if (currentLocation === "market") {
+        if (choiceNum === 1) {
+          buyFromMarket();
+          validMove = false;
+        } else if (choiceNum === 2) {
+          currentLocation = "village";
+          outputLog.push("\nYou return to the village center.");
+          validMove = true;
+        }
+      } else if (currentLocation === "forest") {
+        if (choiceNum === 1) {
+          currentLocation = "village";
+          outputLog.push("\nYou hurry back to the safety of the village.");
+          validMove = true;
+        }
+      } else if (currentLocation === "mountain") {
+        if (choiceNum === 1) {
+          if (!hasGoodEquipment()) {
+            outputLog.push("You feel unprepared. You need a steel sword and some armor to face the dragon!");
+            return false;
+          }
+          outputLog.push("\nYou enter the dragon's lair...");
+          if (handleCombat(true)) {
+            return true;
+          } else {
+            if (playerHealth > 0) {
+              currentLocation = "village";
+              outputLog.push("\nYou barely escape the dragon and flee to the village!");
+            }
+            return false;
+          }
+        } else if (choiceNum === 2) {
+          currentLocation = "village";
+          outputLog.push("\nYou return to the village, the mountain looming behind you.");
+          validMove = true;
+        }
+      }
+      return validMove;
+    }
+
+    // Combat functions
+    function handleCombat(isDragon = false) {
+      let monster = isDragon ? { name: "Dragon", health: 50, damage: 20 } : { name: "Monster", health: 20, damage: 10 };
+      equippedWeapon = getBestItem("weapon");
+      equippedArmor = getBestItem("armor");
+      let weapon = equippedWeapon;
+      let armor = equippedArmor;
+
+      if (weapon) {
+        outputLog.push(`You wield your ${weapon.name} (damage: ${weapon.effect})!`);
+      } else {
+        outputLog.push("You have no weapon!");
+      }
+      if (armor) {
+        outputLog.push(`You brace with your ${armor.name} (protection: ${armor.effect})!`);
+      } else {
+        outputLog.push("You have no armor!");
+      }
+
+      if (isDragon) {
+        if (!weapon || weapon.name !== "Steel Sword" || !armor) {
+          outputLog.push("The dragon shrugs off your feeble attack! You are not well-equipped!");
+          let protection = armor ? armor.effect : 0;
+          let damageTaken = Math.max(1, monster.damage - protection);
+          outputLog.push(`The dragon deals ${monster.damage} damage. Your armor blocks ${protection}. You take ${damageTaken} damage!`);
+          updateHealth(-damageTaken);
+          return false;
+        }
+      }
+
+      let playerAttack = weapon ? weapon.effect : 0;
+      let monsterHealth = monster.health;
+
+      if (playerAttack > 0) {
+        outputLog.push(`You attack the ${monster.name} for ${playerAttack} damage!`);
+        monsterHealth -= playerAttack;
+      } else {
+        outputLog.push(`You can't hurt the ${monster.name} without a weapon!`);
+      }
+
+      if (monsterHealth <= 0) {
+        if (isDragon) {
+          outputLog.push("You have slain the DRAGON! You win the game!");
+          playerGold += 100;
+          gameRunning = false;
+        } else {
+          outputLog.push("Victory! You found 10 gold!");
+          playerGold += 10;
+        }
+        return true;
+      }
+
+      let protection = armor ? armor.effect : 0;
+      let damageTaken = Math.max(1, monster.damage - protection);
+      outputLog.push(`${monster.name} attacks! It deals ${monster.damage} damage. Your armor blocks ${protection}. You take ${damageTaken} damage!`);
+      updateHealth(-damageTaken);
+
+      if (playerHealth > 0) {
+        outputLog.push("You barely escape with your life!");
+        return false;
+      } else {
+        outputLog.push("You have been defeated in battle!");
+        return false;
+      }
+    }
+
+    function updateHealth(amount) {
+      playerHealth += amount;
+      if (playerHealth > 100) {
+        playerHealth = 100;
+        outputLog.push("You're at full health!");
+      }
+      if (playerHealth < 0) {
+        playerHealth = 0;
+        outputLog.push("You're gravely wounded!");
+      }
+      outputLog.push("Health is now: " + playerHealth);
+      return playerHealth;
+    }
+
+    // Item functions
+    function useItem() {
+      const potions = getItemsByType("potion");
+      if (potions.length === 0) {
+        outputLog.push("\nYou have no potions!");
+        return false;
+      }
+      outputLog.push("\n=== Inventory ===");
+      potions.forEach((item, index) => {
+        outputLog.push(`${index + 1}. ${item.name}`);
+      });
+      outputLog.push("Type the number of the potion to use or 'cancel' to skip.");
+      // Store that we're expecting an item choice
+      window.expectingItemChoice = true;
+      return false;
+    }
+
+    function checkInventory() {
+      outputLog.push("\n=== INVENTORY ===");
+      if (inventory.length === 0) {
+        outputLog.push("Your inventory is empty!");
+        return;
+      }
+      inventory.forEach((item) => {
+        outputLog.push(`- ${item.name} (${item.type}, effect: ${item.effect})`);
+      });
+      if (equippedWeapon) outputLog.push(`* Equipped Weapon: ${equippedWeapon.name}`);
+      if (equippedArmor) outputLog.push(`* Equipped Armor: ${equippedArmor.name}`);
+    }
+
+    // Shopping functions
+    function buyFromBlacksmith() {
+      outputLog.push("\nBlacksmith: 'Welcome! What would you like to buy?'");
+      outputLog.push("1: Sword (10 gold)");
+      outputLog.push("2: Steel Sword (25 gold)");
+      outputLog.push("3: Wooden Shield (8 gold)");
+      outputLog.push("4: Iron Shield (18 gold)");
+      outputLog.push("5: Cancel");
+      window.expectingShopChoice = "blacksmith";
+    }
+
+    function buyFromMarket() {
+      const potions = itemTemplates.filter((item) => item.type === "potion");
+      outputLog.push("\nMerchant: 'Welcome! Here are my wares:'");
+      potions.forEach((item, idx) => {
+        outputLog.push(`${idx + 1}: ${item.name} (${item.value} gold) - ${item.description}`);
+      });
+      outputLog.push(`${potions.length + 1}: Cancel`);
+      window.expectingShopChoice = "market";
+    }
+
+    // Help system
+    function showHelp() {
+      outputLog.push("\n=== AVAILABLE COMMANDS ===");
+      outputLog.push("\nMovement Commands:");
+      outputLog.push("- In the village, choose 1-4 to travel to different locations");
+      outputLog.push("- In other locations, choose the return option to go back to the village");
+      outputLog.push("\nBattle Information:");
+      outputLog.push("- You need a sword to win battles");
+      outputLog.push("- Monsters appear in the forest");
+      outputLog.push("- Without a weapon, you'll lose health when retreating");
+      outputLog.push("\nItem Usage:");
+      outputLog.push("- Health potions restore 30 health");
+      outputLog.push("- You can buy potions at the market for 5 gold");
+      outputLog.push("- You can buy weapons/armor at the blacksmith");
+      outputLog.push("\nOther Commands:");
+      outputLog.push("- Choose the status option to see your health and gold");
+      outputLog.push("- Choose the help option to see this message again");
+      outputLog.push("- Choose the quit option to end the game");
+      outputLog.push("\nTips:");
+      outputLog.push("- Keep healing potions for dangerous areas");
+      outputLog.push("- Defeat monsters to earn gold");
+      outputLog.push("- Health can't go above 100");
+    }
+
+    // Input validation
+    function isValidChoice(input, max) {
+      if (input === "") return false;
+      let num = parseInt(input);
+      return num >= 1 && num <= max;
+    }
+
+    // Main game function
+    function main(choice) {
+      if (!playerName) {
+        playerName = choice || "Player";
+        outputLog.push("=================================");
+        outputLog.push("       The Dragon's Quest        ");
+        outputLog.push("=================================");
+        outputLog.push("\nYour quest: Defeat the dragon in the mountains!");
+        outputLog.push(`\nWelcome, ${playerName}!`);
+        outputLog.push(`You start with ${playerGold} gold.`);
+        showLocation();
+        updateOutput();
+        return;
+      }
+
+      if (window.expectingShopChoice === "blacksmith") {
+        let item = null;
+        if (choice === "1") item = itemTemplates.find((i) => i.name === "Sword");
+        else if (choice === "2") item = itemTemplates.find((i) => i.name === "Steel Sword");
+        else if (choice === "3") item = itemTemplates.find((i) => i.name === "Wooden Shield");
+        else if (choice === "4") item = itemTemplates.find((i) => i.name === "Iron Shield");
+        else if (choice === "5") {
+          window.expectingShopChoice = null;
+          showLocation();
+          updateOutput();
+          return;
+        } else {
+          outputLog.push("Invalid choice.");
+          updateOutput();
+          return;
+        }
+        if (playerGold >= item.value) {
+          playerGold -= item.value;
+          inventory.push({ ...item });
+          if (item.type === "weapon") equippedWeapon = item;
+          if (item.type === "armor") equippedArmor = item;
+          outputLog.push(`You bought a ${item.name} for ${item.value} gold!`);
+          outputLog.push("Gold remaining: " + playerGold);
+        } else {
+          outputLog.push("Not enough gold!");
+        }
+        window.expectingShopChoice = null;
+        showLocation();
+        updateOutput();
+        return;
+      }
+
+      if (window.expectingShopChoice === "market") {
+        const potions = itemTemplates.filter((item) => item.type === "potion");
+        let num = parseInt(choice);
+        if (isNaN(num) || num < 1 || num > potions.length + 1) {
+          outputLog.push("Invalid choice.");
+          updateOutput();
+          return;
+        }
+        if (num === potions.length + 1) {
+          window.expectingShopChoice = null;
+          showLocation();
+          updateOutput();
+          return;
+        }
+        let item = potions[num - 1];
+        if (playerGold >= item.value) {
+          playerGold -= item.value;
+          inventory.push({ ...item });
+          outputLog.push(`You bought a ${item.name} for ${item.value} gold!`);
+          outputLog.push("Gold remaining: " + playerGold);
+        } else {
+          outputLog.push("Not enough gold!");
+        }
+        window.expectingShopChoice = null;
+        showLocation();
+        updateOutput();
+        return;
+      }
+
+      if (window.expectingItemChoice) {
+        if (choice === "cancel") {
+          window.expectingItemChoice = false;
+          showLocation();
+          updateOutput();
+          return;
+        }
+        let index = parseInt(choice) - 1;
+        const potions = getItemsByType("potion");
+        if (index >= 0 && index < potions.length) {
+          let item = potions[index];
+          outputLog.push(`\nYou drink the ${item.name}.`);
+          updateHealth(item.effect);
+          inventory.splice(index, 1);
+          outputLog.push("Health restored to: " + playerHealth);
+          window.expectingItemChoice = false;
+        } else {
+          outputLog.push("\nInvalid item number!");
+        }
+        window.expectingItemChoice = false;
+        showLocation();
+        updateOutput();
+        return;
+      }
+
+      let maxChoice = currentLocation === "village" ? 8 : currentLocation === "forest" ? 5 : 6;
+      if (!isValidChoice(choice, maxChoice)) {
+        outputLog.push(`\nError: Please enter a number between 1 and ${maxChoice}.`);
+        updateOutput();
+        return;
+      }
+
+      let choiceNum = parseInt(choice);
+      if (currentLocation === "village") {
+        if (choiceNum <= 4) {
+          move(choiceNum);
+        } else if (choiceNum === 5) {
+          showStatus();
+        } else if (choiceNum === 6) {
+          useItem();
+        } else if (choiceNum === 7) {
+          showHelp();
+        } else if (choiceNum === 8) {
+          gameRunning = false;
+          outputLog.push("\nThanks for playing!");
+        }
+      } else if (currentLocation === "blacksmith") {
+        if (choiceNum === 1 || choiceNum === 2) {
+          move(choiceNum);
+        } else if (choiceNum === 3) {
+          showStatus();
+        } else if (choiceNum === 4) {
+          useItem();
+        } else if (choiceNum === 5) {
+          showHelp();
+        } else if (choiceNum === 6) {
+          gameRunning = false;
+          outputLog.push("\nThanks for playing!");
+        }
+      } else if (currentLocation === "market") {
+        if (choiceNum === 1 || choiceNum === 2) {
+          move(choiceNum);
+        } else if (choiceNum === 3) {
+          showStatus();
+        } else if (choiceNum === 4) {
+          useItem();
+        } else if (choiceNum === 5) {
+          showHelp();
+        } else if (choiceNum === 6) {
+          gameRunning = false;
+          outputLog.push("\nThanks for playing!");
+        }
+      } else if (currentLocation === "forest") {
+        if (choiceNum === 1) {
+          move(choiceNum);
+        } else if (choiceNum === 2) {
+          showStatus();
+        } else if (choiceNum === 3) {
+          useItem();
+        } else if (choiceNum === 4) {
+          showHelp();
+        } else if (choiceNum === 5) {
+          gameRunning = false;
+          outputLog.push("\nThanks for playing!");
+        }
+      } else if (currentLocation === "mountain") {
+        if (choiceNum === 1 || choiceNum === 2) {
+          move(choiceNum);
+        } else if (choiceNum === 3) {
+          showStatus();
+        } else if (choiceNum === 4) {
+          useItem();
+        } else if (choiceNum === 5) {
+          showHelp();
+        } else if (choiceNum === 6) {
+          gameRunning = false;
+          outputLog.push("\nThanks for playing!");
+        }
+      }
+
+      if (playerHealth <= 0) {
+        outputLog.push("\nGame Over! Your health reached 0!");
+        gameRunning = false;
+      }
+
+      showLocation();
+      updateOutput();
+    }
+
+    // Web-specific functions
+    function updateOutput() {
+      document.getElementById("output").textContent = outputLog.join("\n");
+      document.getElementById("output").scrollTop = document.getElementById("output").scrollHeight;
+    }
+
+    function submitChoice() {
+      const input = document.getElementById("input").value.trim();
+      document.getElementById("input").value = "";
+      if (gameRunning) {
+        main(input);
+      } else {
+        outputLog.push("\nGame is over. Click 'Restart Game' to play again.");
+        updateOutput();
+      }
+    }
+
+    function startGame() {
+      gameRunning = true;
+      playerName = "";
+      playerHealth = 100;
+      playerGold = 20;
+      currentLocation = "village";
+      inventory = [];
+      equippedWeapon = null;
+      equippedArmor = null;
+      outputLog = [];
+      window.expectingItemChoice = false;
+      window.expectingShopChoice = null;
+      outputLog.push("Enter your name to start the game:");
+      updateOutput();
+    }
+
+    // Start the game
+    startGame();
+  </script>
+</body>
+</html>
